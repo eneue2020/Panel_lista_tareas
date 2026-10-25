@@ -8,8 +8,11 @@ import httpx
 import streamlit as st
 
 from api_client import ApiError, TodoApi
+from embedded_api import start_api
 
-API_URL = os.environ.get("TODOS_API_URL", "http://localhost:8000")
+# Si se define TODOS_API_URL, el panel usa esa API externa.
+# Si no, arranca la API dentro de este mismo proceso (un solo despliegue).
+API_URL = os.environ.get("TODOS_API_URL")
 
 STATUS_BADGE = {
     "pending": ":orange-badge[Pendiente]",
@@ -24,7 +27,9 @@ COLUMNS = [2.8, 2.6, 1.4, 1.6]
 
 @st.cache_resource
 def get_api() -> TodoApi:
-    return TodoApi(httpx.Client(base_url=API_URL, timeout=5))
+    # cache_resource: la API integrada se arranca una sola vez por proceso, no en cada rerun
+    base_url = API_URL or start_api()
+    return TodoApi(httpx.Client(base_url=base_url, timeout=5))
 
 
 def md_escape(text: str) -> str:
@@ -55,7 +60,11 @@ def run_action(action, success_message: str) -> None:
 st.set_page_config(page_title="Panel de tareas", page_icon="✅", layout="wide")
 st.title("✅ Panel de tareas")
 
-api = get_api()
+try:
+    api = get_api()
+except RuntimeError as exc:
+    st.error(str(exc))
+    st.stop()
 
 if "flash" in st.session_state:
     kind, message = st.session_state.pop("flash")
@@ -64,8 +73,7 @@ if "flash" in st.session_state:
 try:
     todos = api.list_todos()
 except ApiError as exc:
-    st.error(f"{exc}. ¿Está corriendo el backend en {API_URL}?")
-    st.code("uvicorn app.main:app --reload --port 8000", language="bash")
+    st.error(f"{exc}. ¿Está corriendo la API en {API_URL or 'el proceso integrado'}?")
     st.stop()
 
 # ---------- Resumen ----------

@@ -14,7 +14,19 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Hacen falta **dos terminales**, ambas con el entorno virtual activado:
+### Opción A: todo junto (un solo comando)
+
+```bash
+streamlit run frontend/streamlit_app.py
+```
+
+El panel arranca la API de FastAPI en un hilo en segundo plano, dentro del mismo proceso. Es el modo que se usa en Streamlit Cloud.
+
+- Panel: http://localhost:8501 (o el puerto que indique Streamlit)
+
+### Opción B: API y panel por separado
+
+Útil para desarrollar la API o usar su documentación interactiva. Hacen falta dos terminales con el entorno virtual activado:
 
 ```bash
 # Terminal 1: la API
@@ -22,15 +34,27 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 ```bash
-# Terminal 2: el panel
+# Terminal 2: el panel, apuntando a esa API (PowerShell)
+$env:TODOS_API_URL = "http://localhost:8000"
 streamlit run frontend/streamlit_app.py
 ```
 
-- Panel: http://localhost:8501 (o el puerto que indique Streamlit)
 - API: http://localhost:8000/api/todos
 - Documentación interactiva de la API (Swagger): http://localhost:8000/docs
 
-El panel busca la API en `http://localhost:8000`. Para usar otra dirección, definí la variable de entorno `TODOS_API_URL`.
+**Regla:** si existe la variable `TODOS_API_URL`, el panel usa esa API; si no, arranca la suya propia.
+
+## Despliegue en Streamlit Community Cloud
+
+1. Entrá en https://share.streamlit.io con tu cuenta de GitHub.
+2. **Create app** → desplegar desde un repositorio de GitHub.
+3. Repository: `eneue2020/Panel_lista_tareas` · Branch: `main` · Main file path: `frontend/streamlit_app.py`.
+4. En **Advanced settings**, elegí Python 3.11.
+5. **Deploy**.
+
+No hace falta configurar nada más: la API se arranca dentro de la app.
+
+> **Ojo:** en Streamlit Cloud el disco no es permanente. Las tareas guardadas en SQLite se pierden cuando la app se reinicia o se vuelve a desplegar.
 
 ## Tests
 
@@ -51,11 +75,13 @@ proyecto_2/
 │   └── database.py        # Conexión SQLite, creación de la tabla y consultas SQL
 ├── frontend/              # Panel visual
 │   ├── streamlit_app.py   # Interfaz: resumen, formulario y tabla de tareas
-│   └── api_client.py      # Cliente HTTP de la API (el panel no toca la base de datos)
+│   ├── api_client.py      # Cliente HTTP de la API (el panel no toca la base de datos)
+│   └── embedded_api.py    # Arranca la API en segundo plano si no hay TODOS_API_URL
 ├── tests/
 │   ├── conftest.py        # Fixtures: cliente de pruebas con base de datos temporal
 │   ├── test_todos.py      # Tests de los cinco endpoints de la API
-│   └── test_api_client.py # Tests del cliente que usa el panel, contra la API real
+│   ├── test_api_client.py # Tests del cliente que usa el panel, contra la API real
+│   └── test_embedded_api.py # Test de la API integrada
 ├── requirements.txt
 └── pytest.ini
 ```
@@ -69,7 +95,7 @@ Cada capa tiene una sola responsabilidad: `database.py` no sabe nada de HTTP, `r
 - **Tabla de tareas** con el estado en color: naranja para *Pendiente* y verde para *Completada*. Las completadas además se ven tachadas.
 - **Botón Completar** en cada tarea pendiente y **botón Eliminar** en todas.
 - Filtro para ver todas, solo pendientes o solo completadas.
-- Si la API no responde, el panel lo avisa y muestra cómo arrancarla.
+- Si la API no responde, el panel lo avisa en lugar de fallar.
 
 ## API
 
